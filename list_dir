@@ -1,0 +1,23 @@
+from pyspark.sql import functions as F
+
+volume_path = "dbfs:/Volumes/<catalog>/<schema>/<volume>"
+timestamp_regex = r"\b\d{8}T\d{9}\b"   # MMDDYYYYTHHMMSSmmm
+
+df = (
+    spark.read.format("binaryFile")
+    .option("recursiveFileLookup", "true")
+    .load(volume_path)
+)
+
+result = (
+    df.select(
+        F.col("path").alias("Full Path"),
+        F.col("modificationTime").alias("Modified At"),
+        F.col("length").alias("Size (bytes)")
+    )
+    .withColumn("Name", F.regexp_extract("Full Path", r"([^/]+)$", 1))
+    .withColumn("Check Timestamp", F.regexp_extract("Name", timestamp_regex, 0) != "")
+    .orderBy("Name")
+)
+
+display(result)
