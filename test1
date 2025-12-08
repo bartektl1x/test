@@ -1,0 +1,53 @@
+from pyspark.sql import Row
+from pyspark.sql.functions import col
+
+tables = [
+    "catalog.schema.table1",
+    "catalog.schema.table2",
+    # ...
+]
+
+results = []
+
+for table in tables:
+    df = spark.table(table)
+
+    # Find all PK candidate columns
+    kenn_cols = [c for c in df.columns if "_kenn" in c.lower()]
+    kenn_count = len(kenn_cols)
+
+    # If table has no _kenn columns, it is automatically invalid
+    if kenn_count == 0:
+        results.append(
+            Row(
+                table_name=table,
+                row_count=None,
+                kenn_cols_count=0,
+                distinct_combination_count=None,
+                is_pk_valid=False
+            )
+        )
+        continue
+
+    # Count total rows
+    row_count = df.count()
+
+    # Count distinct combination of all _kenn columns
+    distinct_combination_count = df.select(*kenn_cols).distinct().count()
+
+    # PK rule: distinct combination == total rows
+    is_pk_valid = (distinct_combination_count == row_count)
+
+    results.append(
+        Row(
+            table_name=table,
+            row_count=row_count,
+            kenn_cols_count=kenn_count,
+            distinct_combination_count=distinct_combination_count,
+            is_pk_valid=is_pk_valid
+        )
+    )
+
+# Final report
+result_df = spark.createDataFrame(results)
+result_df.display()
